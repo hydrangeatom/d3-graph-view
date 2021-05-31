@@ -1,7 +1,7 @@
 
 var nNodes = 10;
 
-var edges = [
+var edgesList = [
     {start: 0, end: 1},
     {start: 0, end: 9},
     {start: 1, end: 2},
@@ -12,6 +12,111 @@ var edges = [
     {start: 3, end: 7},
     {start: 7, end: 8}
 ];
+
+class Edge {
+    constructor(start, end) {
+        this.start = start;
+        this.end = end;
+    }
+
+    disconnect() {
+        this.start.connectedEdges.delete(this);
+        this.start.connectedNodes.delete(this.end);
+        this.end.connectedEdges.delete(this);
+        this.end.connectedNodes.delete(this.start);
+    }
+}
+
+class Node {
+    constructor(name) {
+        this.name = name;
+        this.connectedNodes = new Set();
+        this.connectedEdges = new Map();
+    }
+
+    connect(otherNode) {
+        const edge = new Edge(this, otherNode);
+        this.connectedNodes.add(otherNode);
+        this.connectedEdges.set(otherNode, edge);
+        otherNode.connectedNodes.add(this);
+        otherNode.connectedEdges.set(this, edge);
+        return edge;
+    }
+
+    disconnectAll() {
+        for(let [node, edge] of this.connectedEdges) {
+            edge.disconnect();
+        }
+    }
+}
+
+class Graph {
+    constructor() {
+        this.nodes = new Map();
+        this.edges = new Set();
+    }
+
+    addNode(name) {
+        const node = new Node(name);
+        this.nodes.set(name, node);
+    }
+
+    addEdge(start, end) {
+        start = this.nodes.get(start);
+        end = this.nodes.get(end);
+        const edge = start.connect(end);
+        this.edges.add(edge);
+    }
+
+    removeEdge(start, end) {
+        start = this.nodes.get(start);
+        end = this.nodes.get(end);
+        const edge = start.connectedEdges.get(end);
+        edge.disconnect();
+        this.edges.delete(edge);
+    }
+    
+    removeNode(name) {
+        const node = this.nodes.get(name);
+        for(let [_, edge] of node.connectedEdges) {
+            this.edges.delete(edge);
+        }
+        node.disconnectAll();
+        this.nodes.delete(name);
+    }
+
+    print() {
+        console.log("### graph ###");
+        for(let [name, _] of this.nodes) {
+            console.log( "node: "+name);
+        }
+        for(let edge of this.edges) {
+            const start = edge.start.name;
+            const end = edge.end.name;
+            console.log(" edge: "+start + " - " + end);
+        }
+        console.log("");
+    }
+}
+
+function testGraph(){
+    const graph = new Graph();
+    graph.addNode("A");
+    graph.addNode("B");
+    graph.addNode("C");
+    graph.addEdge("A", "B");
+    graph.print();
+    graph.addEdge("B", "C");
+    graph.print();
+    graph.addEdge("C", "A");
+    graph.print();
+    graph.removeEdge("A", "B");
+    graph.print();
+    graph.removeNode("A");
+    graph.print();
+}
+
+testGraph();
 
 var width   = 500,
     height  = 500,
@@ -28,7 +133,7 @@ const circles = d3.range(nNodes).map(i => ({
 }));
 
 function updateLine(line) {
-    lines = edges.map(e => ({
+    lines = edgesList.map(e => ({
         x1: circles[e.start].x,
         y1: circles[e.start].y,
         x2: circles[e.end].x,
@@ -73,6 +178,7 @@ function dragEnded(event, d) {
     d3.select(this)
         .style("stroke", null)
         .style("stroke-width", null);
+    this.remove();
     line = updateLine(line);
 }
 
