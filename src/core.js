@@ -1,17 +1,3 @@
-var nNodes = 10;
-
-var edgesList = [
-    {start: 0, end: 1},
-    {start: 0, end: 9},
-    {start: 1, end: 2},
-    {start: 2, end: 3},
-    {start: 3, end: 4},
-    {start: 3, end: 5},
-    {start: 3, end: 6},
-    {start: 3, end: 7},
-    {start: 7, end: 8}
-];
-
 class Edge {
     constructor(start, end) {
         this.start = start;
@@ -125,6 +111,19 @@ class Svg{
             .style("stroke-width", 8);
     }
 
+    addDashedLine(x1, y1, x2, y2, color) {
+        return this.svg.append("line")
+            .attr("x1", x1)
+            .attr("y1", y1)
+            .attr("x2", x2)
+            .attr("y2", y2)
+            .style("opacity", 0.5)
+            .style("stroke", color)
+            .style("stroke-width", 8)
+            .style("stroke-dasharray", 8); 
+    }
+    
+
     addCircle(x, y, r, color) {
         return this.svg.append('circle')
             .attr("cx", x)
@@ -214,6 +213,7 @@ class SvgNode extends Node {
         this.circle = svg.addCircle(x, y, 20, this.color)
             .data([this])
             .call(drag)
+            .on("click", this.clicked)
             .on("contextmenu",this.rightClicked);
     }
 
@@ -251,6 +251,12 @@ class SvgNode extends Node {
             .style("stroke-width", null);
     }
 
+    clicked(event, node) {
+        if(event.defaultPrevented) return;
+        node.connecting = true;
+        console.log("connecting");
+    }
+
     rightClicked(event, node) {
         event.preventDefault();
         node.remove();
@@ -261,12 +267,17 @@ class SvgGraph extends Graph {
     constructor(svg) {
         super();
         this.svg = svg;
-        this.svg.svg = this.svg.svg.on("click", this.clicked);
+        this.svg.svg = this.svg.svg
+            .data([this])
+            .on("click", this.clicked)
+            .on("contextmenu", this.rightClicked)
+            .on("dblclick", this.dblclicked)
+            .on("mousemove", this.mousemoved);
     }
 
     makeNode(name) {
-        const x = Math.random() * this.svg.width,
-              y = Math.random() * this.svg.height;
+        const x = this.svg.width / 4 + Math.random() * this.svg.width / 2,
+              y = this.svg.height / 4 + Math.random() * this.svg.height / 2;
         return new SvgNode(this.svg, name, x, y);
     }
 
@@ -274,9 +285,57 @@ class SvgGraph extends Graph {
         return new SvgEdge(this.svg, start, end);
     }
 
-    clicked(event, d) {
+    // FIXME
+    addAnonymousNode(x, y) { 
+        var name = Math.floor(Math.random() * 1000000000);
+        const node = new SvgNode(this.svg, name, x, y);
+        this.nodes.set(name, node);
+    }
+
+    clicked(event, graph) {
         if(event.defaultPrevented) return;
-        console.log("clicked");
+
+        var connectingNodes = [];
+        for(let [_, node] of graph.nodes) {
+            if(node.connecting) connectingNodes.push(node);
+        }
+        if(connectingNodes.length==1 && !graph.connectingEdge){
+            var x1 = connectingNodes[0].x,
+                y1 = connectingNodes[0].y,
+                x2 = event.x,
+                y2 = event.y;
+            graph.connectingEdge = graph.svg.addDashedLine(x1, y1, x2, y2, getRandomColor());
+        }
+        if(connectingNodes.length==2){
+            graph.addEdge(connectingNodes[0].name, connectingNodes[1].name);
+            connectingNodes[0].connecting = false;
+            connectingNodes[1].connecting = false;
+            graph.connectingEdge.remove();
+            graph.connectingEdge = null;
+            console.log("connected");
+        }
+    }
+    
+    mousemoved(event, graph) {
+        if(graph.connectingEdge) {
+            graph.connectingEdge = graph.connectingEdge
+                .attr("x2", event.x)
+                .attr("y2", event.y);
+        }
+    }
+
+    dblclicked(event, graph) {
+        graph.addAnonymousNode(event.x, event.y);
+    }
+
+    rightClicked(event, graph) {
+        event.preventDefault();
+        for(let [_, node] of graph.nodes) {
+            node.connecting = false;
+        }
+        if(graph.connectingEdge) graph.connectingEdge.remove();
+        graph.connectingEdge = null;
+        console.log("connecting cleared");
     }
 }
 
