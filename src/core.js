@@ -158,7 +158,8 @@ class SvgEdge extends Edge{
             .on("end", this.dragEnded);
         this.line = svg.addLine(start.x, start.y, end.x, end.y, this.color)
             .data([this])
-            .call(drag);
+            .call(drag)
+            .on("contextmenu", this.rightClicked);
     }
 
     remove() {
@@ -190,6 +191,11 @@ class SvgEdge extends Edge{
             .style("stroke", "darkgray");
     }
 
+    rightClicked(event, edge) {
+        event.preventDefault();
+        edge.remove();
+    }
+
 }
 
 class SvgNode extends Node {
@@ -207,7 +213,8 @@ class SvgNode extends Node {
 
         this.circle = svg.addCircle(x, y, 20, this.color)
             .data([this])
-            .call(drag);
+            .call(drag)
+            .on("contextmenu",this.rightClicked);
     }
 
     remove() {
@@ -242,6 +249,11 @@ class SvgNode extends Node {
         d3.select(this)
             .style("stroke", null)
             .style("stroke-width", null);
+    }
+
+    rightClicked(event, node) {
+        event.preventDefault();
+        node.remove();
     }
 }
 
