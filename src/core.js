@@ -34,15 +34,6 @@ class Node {
         this.connectedEdges = new Map();
     }
 
-    connect(otherNode) {
-        const edge = new Edge(this, otherNode);
-        this.connectedNodes.add(otherNode);
-        this.connectedEdges.set(otherNode, edge);
-        otherNode.connectedNodes.add(this);
-        otherNode.connectedEdges.set(this, edge);
-        return edge;
-    }
-
     disconnectAll() {
         for(let [node, edge] of this.connectedEdges) {
             edge.disconnect();
@@ -56,15 +47,29 @@ class Graph {
         this.edges = new Set();
     }
 
+    makeNode(name) {
+        return new Node(name);
+    }
+
+    makeEdge(start, end) {
+        return new Egge(start, end);
+    }
+
     addNode(name) {
-        const node = new Node(name);
+        const node = this.makeNode(name);
         this.nodes.set(name, node);
     }
 
     addEdge(start, end) {
         start = this.nodes.get(start);
         end = this.nodes.get(end);
-        const edge = start.connect(end);
+
+        const edge = this.makeEdge(start, end);
+        start.connectedNodes.add(end);
+        start.connectedEdges.set(end, edge);
+        end.connectedNodes.add(start);
+        end.connectedEdges.set(start, edge);
+
         this.edges.add(edge);
     }
 
@@ -99,60 +104,37 @@ class Graph {
     }
 }
 
-function testGraph(){
-    const graph = new Graph();
-    graph.addNode("A");
-    graph.addNode("B");
-    graph.addNode("C");
-    graph.addEdge("A", "B");
-    graph.print();
-    graph.addEdge("B", "C");
-    graph.print();
-    graph.addEdge("C", "A");
-    graph.print();
-    graph.removeEdge("A", "B");
-    graph.print();
-    graph.removeNode("A");
-    graph.print();
+class Svg{
+    constructor(width, height) {
+        this.width = width;
+        this.height = height;
+        this.svg = d3.select("body")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+    }
+
+    addLine(x1, y1, x2, y2) {
+        return this.svg.append("line")
+            .attr("x1", x1)
+            .attr("y1", y1)
+            .attr("x2", x2)
+            .attr("y2", y2)
+            .style("stroke", "darkgray")
+            .style("stroke-width", 4);
+    }
+
+    addCircle(x, y, r) {
+        var i = Math.floor(Math.random() * 10);
+        const color =  d3.schemeCategory10[i];
+        return this.svg.append('circle')
+            .attr("cx", x)
+            .attr("cy", y)
+            .attr("r", r)
+            .attr("fill", color);
+    }
+
 }
-
-testGraph();
-
-var width   = 500,
-    height  = 500,
-    radius  = 20;
-
-const svg = d3.select("body")
-    .append("svg")
-    .attr("width", width)
-    .attr("height", height);
-
-const circles = d3.range(nNodes).map(i => ({
-    x: Math.random() * (width - radius * 2) + radius,
-    y: Math.random() * (height - radius * 2) + radius,
-}));
-
-function updateLine(line) {
-    lines = edgesList.map(e => ({
-        x1: circles[e.start].x,
-        y1: circles[e.start].y,
-        x2: circles[e.end].x,
-        y2: circles[e.end].y,
-    }));
-
-    return line
-        .data(lines)
-        .join("line")
-        .attr("x1", d => d.x1)
-        .attr("y1", d => d.y1)
-        .attr("x2", d => d.x2)
-        .attr("y2", d => d.y2)
-        .style("stroke", "darkgray")
-        .style("stroke-width", 4);
-}
-
-var line = svg.append("g").selectAll("line");
-line = updateLine(line);
 
 function getDarkColor(color) {
     var color = d3.color(color);
@@ -160,39 +142,101 @@ function getDarkColor(color) {
     return color.formatHex()
 }
 
-function dragStarted(event, d) {
-    var newColor = getDarkColor(d3.select(this).attr("fill"));
-    d3.select(this)
-        .style("stroke", newColor)
-        .style("stroke-width", 4);
+class SvgEdge extends Edge{
+    constructor(svg, start, end) {
+        super(start, end);
+        this.svg = svg;
+        this.line = svg.addLine(start.x, start.y, end.x, end.y);
+    }
+
+    updatePosition() {
+        this.line = this.line
+            .attr("x1", this.start.x)
+            .attr("y1", this.start.y)
+            .attr("x2", this.end.x)
+            .attr("y2", this.end.y);
+    }
+
 }
 
-function dragged(event, d) {
-    d3.select(this)
-        .attr("cx", d.x = event.x)
-        .attr("cy", d.y = event.y);
-    line = updateLine(line);
+class SvgNode extends Node {
+    constructor(svg, name, x, y) {
+        super(name);
+        this.x = x;
+        this.y = y;
+        this.svg = svg;
+
+        const drag = d3.drag()
+            .on("start", this.dragStarted)
+            .on("drag", this.dragged)
+            .on("end", this.dragEnded);
+
+        this.circle = svg.addCircle(x, y, 20)
+            .data([this])
+            .call(drag);
+    }
+
+    updatePosition(x, y) {
+        this.x = x;
+        this.y = y;
+        this.circle = this.circle
+            .attr("cx", x)
+            .attr("cy", y);
+        
+        for (let [_, edge] of this.connectedEdges) {
+            edge.updatePosition();
+        }
+    }
+
+    dragStarted(event, d) {
+        var newColor = getDarkColor(d3.select(this).attr("fill"));
+        d3.select(this)
+            .style("stroke", newColor)
+            .style("stroke-width", 4);
+    }
+    
+    dragged(event, d) {
+        d.updatePosition(event.x, event.y);
+    }
+    
+    dragEnded(event, d) {
+        d3.select(this)
+            .style("stroke", null)
+            .style("stroke-width", null);
+    }
 }
 
-function dragEnded(event, d) {
-    d3.select(this)
-        .style("stroke", null)
-        .style("stroke-width", null);
-    this.remove();
-    line = updateLine(line);
+class SvgGraph extends Graph {
+    constructor(svg) {
+        super();
+        this.svg = svg;
+    }
+
+    makeNode(name) {
+        const x = Math.random() * this.svg.width,
+              y = Math.random() * this.svg.height;
+        return new SvgNode(this.svg, name, x, y);
+    }
+
+    makeEdge(start, end) {
+        return new SvgEdge(this.svg, start, end);
+    }
 }
 
-drag = d3.drag()
-    .on("start", dragStarted)
-    .on("drag", dragged)
-    .on("end", dragEnded);
+function testGraph(){
+    const svg = new Svg(500, 500);
+    const graph = new SvgGraph(svg);
+    graph.addNode("A");
+    graph.addNode("B");
+    graph.addNode("C");
+    graph.addNode("D");
+    graph.addNode("E");
+    graph.addEdge("A", "B");
+    graph.addEdge("B", "C");
+    graph.addEdge("C", "A");
+    graph.addEdge("C", "D");
+    graph.addEdge("D", "E");
+}
 
-var circle = svg.append("g")
-    .selectAll("circle")
-    .data(circles)
-    .join("circle")
-    .attr("cx", d => d.x)
-    .attr("cy", d => d.y)
-    .attr("r", radius)
-    .attr("fill", (d, i) => d3.schemeCategory10[i % 10])
-    .call(drag);
+
+testGraph();
