@@ -1,4 +1,3 @@
-
 var nNodes = 10;
 
 var edgesList = [
@@ -114,19 +113,19 @@ class Svg{
             .attr("height", height);
     }
 
-    addLine(x1, y1, x2, y2) {
+    addLine(x1, y1, x2, y2, color) {
         return this.svg.append("line")
             .attr("x1", x1)
             .attr("y1", y1)
             .attr("x2", x2)
             .attr("y2", y2)
-            .style("stroke", "darkgray")
+            .style("stroke", color)
+            .style("opacity", 0.5)
+            .style("stroke-linecap", "round")
             .style("stroke-width", 8);
     }
 
-    addCircle(x, y, r) {
-        var i = Math.floor(Math.random() * 10);
-        const color =  d3.schemeCategory10[i];
+    addCircle(x, y, r, color) {
         return this.svg.append('circle')
             .attr("cx", x)
             .attr("cy", y)
@@ -134,6 +133,12 @@ class Svg{
             .attr("fill", color);
     }
 
+}
+
+function getRandomColor() {
+    var i = Math.floor(Math.random() * 10);
+    const color =  d3.schemeCategory10[i];
+    return color;
 }
 
 function getDarkColor(color) {
@@ -146,11 +151,12 @@ class SvgEdge extends Edge{
     constructor(svg, start, end) {
         super(start, end);
         this.svg = svg;
+        this.color = getRandomColor();
         const drag = d3.drag()
             .on("start", this.dragStarted)
             .on("drag", this.dragged)
             .on("end", this.dragEnded);
-        this.line = svg.addLine(start.x, start.y, end.x, end.y)
+        this.line = svg.addLine(start.x, start.y, end.x, end.y, this.color)
             .data([this])
             .call(drag);
     }
@@ -192,13 +198,14 @@ class SvgNode extends Node {
         this.x = x;
         this.y = y;
         this.svg = svg;
+        this.color = getRandomColor();
 
         const drag = d3.drag()
             .on("start", this.dragStarted)
             .on("drag", this.dragged)
             .on("end", this.dragEnded);
 
-        this.circle = svg.addCircle(x, y, 20)
+        this.circle = svg.addCircle(x, y, 20, this.color)
             .data([this])
             .call(drag);
     }
@@ -242,6 +249,7 @@ class SvgGraph extends Graph {
     constructor(svg) {
         super();
         this.svg = svg;
+        this.svg.svg = this.svg.svg.on("click", this.clicked);
     }
 
     makeNode(name) {
@@ -252,6 +260,11 @@ class SvgGraph extends Graph {
 
     makeEdge(start, end) {
         return new SvgEdge(this.svg, start, end);
+    }
+
+    clicked(event, d) {
+        if(event.defaultPrevented) return;
+        console.log("clicked");
     }
 }
 
