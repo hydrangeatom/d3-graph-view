@@ -19,7 +19,7 @@ class Edge {
         this.end = end;
     }
 
-    disconnect() {
+    remove() {
         this.start.connectedEdges.delete(this);
         this.start.connectedNodes.delete(this.end);
         this.end.connectedEdges.delete(this);
@@ -34,9 +34,9 @@ class Node {
         this.connectedEdges = new Map();
     }
 
-    disconnectAll() {
+    remove() {
         for(let [node, edge] of this.connectedEdges) {
-            edge.disconnect();
+            edge.remove();
         }
     }
 }
@@ -77,7 +77,7 @@ class Graph {
         start = this.nodes.get(start);
         end = this.nodes.get(end);
         const edge = start.connectedEdges.get(end);
-        edge.disconnect();
+        edge.remove();
         this.edges.delete(edge);
     }
     
@@ -86,7 +86,7 @@ class Graph {
         for(let [_, edge] of node.connectedEdges) {
             this.edges.delete(edge);
         }
-        node.disconnectAll();
+        node.remove();
         this.nodes.delete(name);
     }
 
@@ -121,7 +121,7 @@ class Svg{
             .attr("x2", x2)
             .attr("y2", y2)
             .style("stroke", "darkgray")
-            .style("stroke-width", 4);
+            .style("stroke-width", 8);
     }
 
     addCircle(x, y, r) {
@@ -146,7 +146,18 @@ class SvgEdge extends Edge{
     constructor(svg, start, end) {
         super(start, end);
         this.svg = svg;
-        this.line = svg.addLine(start.x, start.y, end.x, end.y);
+        const drag = d3.drag()
+            .on("start", this.dragStarted)
+            .on("drag", this.dragged)
+            .on("end", this.dragEnded);
+        this.line = svg.addLine(start.x, start.y, end.x, end.y)
+            .data([this])
+            .call(drag);
+    }
+
+    remove() {
+        super.remove();
+        this.line.remove();
     }
 
     updatePosition() {
@@ -155,6 +166,22 @@ class SvgEdge extends Edge{
             .attr("y1", this.start.y)
             .attr("x2", this.end.x)
             .attr("y2", this.end.y);
+    }
+
+    dragStarted(event, d) {
+        var newColor = getDarkColor(d3.select(this).style("stroke"));
+        d3.select(this)
+            .style("stroke", newColor);
+    }
+    
+    dragged(event, d) {
+        d.start.updatePosition(d.start.x+event.dx, d.start.y+event.dy);
+        d.end.updatePosition(d.end.x+event.dx, d.end.y+event.dy);        
+    }
+    
+    dragEnded(event, d) {
+        d3.select(this)
+            .style("stroke", "darkgray");
     }
 
 }
@@ -174,6 +201,11 @@ class SvgNode extends Node {
         this.circle = svg.addCircle(x, y, 20)
             .data([this])
             .call(drag);
+    }
+
+    remove() {
+        super.remove();
+        this.circle.remove();
     }
 
     updatePosition(x, y) {
