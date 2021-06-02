@@ -1,3 +1,26 @@
+function dist2d (ri, rj) {
+    return ((ri[0]-rj[0])**2+(ri[1]-rj[1])**2)**0.5;
+}
+
+function E_lj (ri, rj, r0, e) {
+    var r = dist2d(ri, rj);
+    return e*((r0/r)**12-(r0/r)**6);
+}
+
+function F_lj (ri, rj, r0, e) {
+    var r = dist2d(ri, rj);
+    var rji = [(ri[0]-rj[0])/r, (ri[1]-rj[1])/r];
+    var f = 12*e/r0*((r0/r)**13-(r0/r)**7);
+    return [rji[0]*f, rji[1]*f];
+}
+
+function F_harmonic (ri, rj, r0, e) {
+    var r = dist2d(ri, rj);
+    var rji = [(ri[0]-rj[0])/r, (ri[1]-rj[1])/r];
+    var f = -2*e*(r-r0);
+    return [rji[0]*f, rji[1]*f];
+}
+
 class Edge {
     constructor(start, end) {
         this.start = start;
@@ -174,7 +197,9 @@ class SvgEdge extends Edge{
             .attr("y2", this.end.y);
     }
 
-    dragStarted(event, d) {
+    dragStarted(event, edge) {
+        edge.start.selected = true;
+        edge.end.selected = true;        
         var newColor = getDarkColor(d3.select(this).style("stroke"));
         d3.select(this)
             .style("stroke", newColor);
@@ -185,7 +210,9 @@ class SvgEdge extends Edge{
         d.end.updatePosition(d.end.x+event.dx, d.end.y+event.dy);        
     }
     
-    dragEnded(event, d) {
+    dragEnded(event, edge) {
+        edge.start.selected = false;
+        edge.end.selected = false;
         d3.select(this)
             .style("stroke", "darkgray");
     }
@@ -198,11 +225,12 @@ class SvgEdge extends Edge{
 }
 
 class SvgNode extends Node {
-    constructor(svg, name, x, y) {
+    constructor(svg, graph, name, x, y) {
         super(name);
         this.x = x;
         this.y = y;
         this.svg = svg;
+        this.graph = graph;
         this.color = getRandomColor();
 
         const drag = d3.drag()
@@ -234,7 +262,8 @@ class SvgNode extends Node {
         }
     }
 
-    dragStarted(event, d) {
+    dragStarted(event, node) {
+        node.selected = true;
         var newColor = getDarkColor(d3.select(this).attr("fill"));
         d3.select(this)
             .style("stroke", newColor)
@@ -245,7 +274,8 @@ class SvgNode extends Node {
         d.updatePosition(event.x, event.y);
     }
     
-    dragEnded(event, d) {
+    dragEnded(event, node) {
+        node.selected = false;
         d3.select(this)
             .style("stroke", null)
             .style("stroke-width", null);
@@ -259,7 +289,7 @@ class SvgNode extends Node {
 
     rightClicked(event, node) {
         event.preventDefault();
-        node.remove();
+        node.graph.removeNode(node.name);
     }
 }
 
@@ -278,7 +308,7 @@ class SvgGraph extends Graph {
     makeNode(name) {
         const x = this.svg.width / 4 + Math.random() * this.svg.width / 2,
               y = this.svg.height / 4 + Math.random() * this.svg.height / 2;
-        return new SvgNode(this.svg, name, x, y);
+        return new SvgNode(this.svg, this, name, x, y);
     }
 
     makeEdge(start, end) {
@@ -288,8 +318,35 @@ class SvgGraph extends Graph {
     // FIXME
     addAnonymousNode(x, y) { 
         var name = Math.floor(Math.random() * 1000000000);
-        const node = new SvgNode(this.svg, name, x, y);
+        const node = new SvgNode(this.svg, this, name, x, y);
         this.nodes.set(name, node);
+    }
+
+    // FIXME
+    updatePositionLJ(dt) {
+        var e = 1.0;
+        var radj = 75;
+        var rinf = 200;
+
+        //console.log("###")
+        for (let [_, nodei] of this.nodes) {
+            var f = [0, 0];
+            for (let [_, nodej] of this.nodes) {
+                if (nodei == nodej) continue;
+                if (nodei.selected) continue;
+                var r0 = rinf;
+                if (nodei.connectedNodes.has(nodej)) {
+                    r0 = radj;
+                }
+                var ri = [nodei.x, nodei.y];
+                var rj = [nodej.x, nodej.y];
+                var f_tmp = F_harmonic(ri, rj, r0, e);
+                f[0] += f_tmp[0];
+                f[1] += f_tmp[1];
+            }
+            //console.log(nodei.name, f);
+            nodei.updatePosition(nodei.x+f[0]*dt, nodei.y+f[1]*dt);
+        }
     }
 
     clicked(event, graph) {
@@ -340,8 +397,12 @@ class SvgGraph extends Graph {
 }
 
 function testGraph(){
-    const svg = new Svg(500, 500);
+    const svg = new Svg(800, 500);
     const graph = new SvgGraph(svg);
+    setInterval(function(){
+            graph.updatePositionLJ(0.01);
+        }
+        , 0.01*1000);
     graph.addNode("A");
     graph.addNode("B");
     graph.addNode("C");
