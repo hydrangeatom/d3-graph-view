@@ -1,0 +1,25 @@
+circle.hydrogen {
+    fill: gray;
+    opacity: 0.8;
+}
+
+circle.carbon {
+    fill: black;
+    opacity: 0.8;
+}
+
+circle.nitrogen {
+    fill: blue;
+    opacity: 0.8;
+}
+
+circle.oxygen {
+    fill: red;
+    opacity: 0.8;
+}
+
+line {
+    stroke: lightblue;
+    stroke-width: 10;
+    stroke-opacity: 0.7;
+}
