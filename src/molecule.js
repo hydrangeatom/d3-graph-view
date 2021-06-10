@@ -37,6 +37,7 @@ const svg = d3
 const simulation = d3
     .forceSimulation(nodes)
     .force("charge", d3.forceManyBody().strength(-600))
+    .force("center", d3.forceCenter(SVG_WIDTH/2, SVG_HEIGHT/2))
     .force("link", d3.forceLink(links)
         .id( d => d.id)
         .distance( d => d.dist));
